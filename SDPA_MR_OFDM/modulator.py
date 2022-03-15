@@ -75,27 +75,57 @@ PILOTS_INDICES = {
     3: PILOTS_INDICES_OPTION_3,
     4: PILOTS_INDICES_OPTION_4}
 
+# See Table 140
+STF_OPTION_1 = np.zeros(FFT_SIZE[1])
+STF_OPTION_1[np.array([-48,-40,-32,-24,-16,-8,8,16,24,32,40,48])+STF_OPTION_1.size//2] = np.sqrt(104/12)
+
+# See Table 141
+STF_OPTION_2 = np.zeros(FFT_SIZE[2])
+STF_OPTION_2[np.array([-24,-20,-16,-12,-8,-4,4,8,12,16,20,24])+STF_OPTION_2.size//2] = np.sqrt(52/12)
+
+# See Table 142
+STF_OPTION_3 = np.zeros(FFT_SIZE[3])
+STF_OPTION_3[np.array([-12,-8,-4,4,8,12])+STF_OPTION_3.size//2] = np.sqrt(26/6)
+
+# See Table 143
+STF_OPTION_4 = np.zeros(FFT_SIZE[4])
+STF_OPTION_4[np.array([-6,-4,-2,2,4,6])+STF_OPTION_4.size//2] = np.sqrt(14/6)
+
+STF = {
+    1: STF_OPTION_1,
+    2: STF_OPTION_2,
+    3: STF_OPTION_3,
+    4: STF_OPTION_4
+}
 # Modulation as a function of MCS (See table )
 MODULATION = {
-    0 : 'BPSK',
-    1 : 'BPSK',
-    2 : 'QPSK',
-    3 : 'QPSK',
-    4 : 'QPSK',
-    5 : 'QAM16',
-    6 : 'QAM16'
+    0: 'BPSK',
+    1: 'BPSK',
+    2: 'QPSK',
+    3: 'QPSK',
+    4: 'QPSK',
+    5: 'QAM16',
+    6: 'QAM16'
+}
+
+# Modulation factor (See table 149)
+K_MOD = {
+    'BPSK': 1,
+    'QPSK': 1/np.sqrt(2),
+    'QAM16': 1/np.sqrt(10)
 }
 
 # Number of active tones (pilots + data) for each option
 ACTIVE_TONES = {
-    1 : 104,
-    2 : 52,
-    3 : 26,
-    4 : 14
+    1: 104,
+    2: 52,
+    3: 26,
+    4: 14
 }
 
 # Spacing between FFT channels (See 18.2 page 70)
-SUB_CARRIER_SPACING = 31250/3 # Hz
+SUB_CARRIER_SPACING = 31250/3  # Hz
+
 
 class mr_ofdm_modulator():
     def __init__(self, MCS=0, OFDM_Option=1, verbose=False):
@@ -138,13 +168,14 @@ class mr_ofdm_modulator():
         # Instanciate OFDM modulator from SDPA_OFDM package
         self.ofdm_modulator = ofdm_modulator(
             N_FFT=FFT_SIZE[OFDM_Option],
-            BW = SUB_CARRIER_SPACING * (FFT_SIZE[OFDM_Option]-1) / 2,
+            BW=SUB_CARRIER_SPACING * (FFT_SIZE[OFDM_Option]-1) / 2,
             modulation=MODULATION[MCS],
+            modulation_factor = K_MOD[MODULATION[MCS]],
             padding_left=padding,
-            padding_right=padding - 1, 
+            padding_right=padding - 1,
             pilots_indices=PILOTS_INDICES[OFDM_Option],
             pilots=pilots,
-            rate=None, #todo
-            rep=None, #todo
-            MSB_first=True, # TODO : find in the specs if this is valid
+            rate=None,  # todo
+            rep=None,  # todo
+            MSB_first=True,  # TODO : find in the specs if this is valid
             verbose=verbose)

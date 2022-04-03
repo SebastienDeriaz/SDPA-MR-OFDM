@@ -456,10 +456,6 @@ class mr_ofdm_modulator():
             # NOTE: //1 gives the right result but it should be //SF
             N_row = 12 // SF
 
-        print(f"N_bpsc = {N_bpsc}")
-        print(f"N_cbps = {N_cbps}")
-        print(f"N_row = {N_row}")
-
         k = np.arange(N_cbps, dtype=int)
         i = ((N_cbps / N_row) * (np.mod(k, N_row)) +
              np.floor(k / N_row)).astype(int)
@@ -499,15 +495,11 @@ class mr_ofdm_modulator():
         # TODO : remove docstring if this works
         length = message.size // 8 # number of octets !
         # See P.90
-        print(f"N_cbps = {self._N_cbps}")
-        print(f"N_dbps = {self._N_dbps}")
         N_SYM = np.ceil((8 * length + 6) / self._N_dbps)
         N_DATA = N_SYM * self._N_dbps
         N_PAD = int(N_DATA - (8 * length + 6))
         self._N_PAD = N_PAD
-        print(f"pad bits : {N_PAD}")
         output = np.block([message, np.zeros(N_PAD), np.zeros(N_TAIL_BITS)])
-        print(f"message {message.shape} -> output {output.shape}")
         return output
 
     def _modulation(self, message, modulation):
@@ -602,7 +594,7 @@ class mr_ofdm_modulator():
             pilots_values="pn9",
             CP=1/4)
 
-        PHY_I, PHY_Q, _, _ = mod_phy.messageToIQ(PHY_header_mapped, pad=False)
+        PHY_I, PHY_Q, _ = mod_phy.messageToIQ(PHY_header_mapped, pad=False)
 
         # Scrambler
         payload_pad = self._padding(message)
@@ -629,18 +621,13 @@ class mr_ofdm_modulator():
             CP=1/4,
             initial_pilot_set=mod_phy.get_pilot_set_index(),
             initial_pn9_seed = mod_phy.get_pn9_value())
-        
-        print(f"Modulation factor : {K_MOD[MODULATION[self._MCS]]}")
 
-        np.save("header_encoded", PHY_header_encoded)
-        np.save("payload_encoded", payload_encoded)
-
-        PAYLOAD_I, PAYLOAD_Q, _, payload_mapped = mod_payload.messageToIQ(payload_interleaved, pad=True)
+        PAYLOAD_I, PAYLOAD_Q, _ = mod_payload.messageToIQ(payload_interleaved, pad=True)
 
         I = np.block([STF_I, LTF_I, PHY_I, PAYLOAD_I])
         Q = np.block([STF_Q, LTF_Q, PHY_Q, PAYLOAD_Q])
 
-        return I, Q, payload_mapped
+        return I, Q
 
     def _print_verbose(self, message: str):
         """

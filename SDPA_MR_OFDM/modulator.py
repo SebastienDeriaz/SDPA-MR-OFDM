@@ -1,8 +1,11 @@
-from SDPA_MR_OFDM.pn9 import pn9
-from SDPA_OFDM import ofdm_modulator
-from SDPA_MR_OFDM.rate_encoder import rate_one_half, rate_three_quarter
-from SDPA_MR_OFDM.fields import PHR
+from doctest import OutputChecker
 import numpy as np
+from SDPA_OFDM import ofdm_modulator
+from SDPA_OFDM.modulations import get_modulator
+from SDPA_OFDM.pn9 import pn9
+
+from SDPA_MR_OFDM.rate_encoder import rate_one_half, rate_three_quarter
+from SDPA_MR_OFDM.fields import PHR, TAIL_BITS
 
 
 # FFT size as function of OFDM option
@@ -75,7 +78,8 @@ PILOTS_INDICES = {
     1: PILOTS_INDICES_OPTION_1,
     2: PILOTS_INDICES_OPTION_2,
     3: PILOTS_INDICES_OPTION_3,
-    4: PILOTS_INDICES_OPTION_4}
+    4: PILOTS_INDICES_OPTION_4
+}
 
 # See Table 140
 STF_OPTION_1 = np.zeros(FFT_SIZE[1])
@@ -153,6 +157,14 @@ ACTIVE_TONES = {
     4: 14
 }
 
+# Number of data tones (active tones - pilot tones)
+DATA_TONES = {
+    1: 96,
+    2: 48,
+    3: 24,
+    4: 12
+}
+
 # Frequency spreading depending on MCS
 FREQUENCY_SPREADING = {
     0: 4,
@@ -175,6 +187,13 @@ VALID_MCS_OFDM_COMBINATIONS = (
     (False, True, True, True),
     (False, False, True, True),
 )
+
+LOWEST_MCS_VALUE = {
+    1: 0,
+    2: 0,
+    3: 1,
+    4: 2
+}
 
 
 # Spacing between FFT channels (See 18.2 page 70)
@@ -200,9 +219,19 @@ LTF = {
     4: LTF_4
 }
 
+# Scrambling seed (See Table 158)
+# bit 19 of PHR is MSB of key (S1)
+# bit 20 of PHR is LSB of key (s0)
+SCRAMBLING_SEED = {
+    0: int('0b000010111', 2),
+    1: int('0b000011100', 2),
+    2: int('0b101110111', 2),
+    3: int('0b101111100', 2)
+}
+
 
 class mr_ofdm_modulator():
-    def __init__(self, MCS=0, OFDM_Option=1, phyOFDMInterleaving = 0, scrambler = 0, verbose=False):
+    def __init__(self, MCS=0, OFDM_Option=1, phyOFDMInterleaving=0, scrambler=0, verbose=False):
         """
         MR-OFDM Modulator
 
@@ -229,7 +258,7 @@ class mr_ofdm_modulator():
         if not (1 <= OFDM_Option <= 4):
             raise ValueError(
                 f"Invalid OFDM_Option ({OFDM_Option} instead of [1-4])")
-        if not VALID_MCS_OFDM_COMBINATIONS[MCS][OFDM_Option]:
+        if not VALID_MCS_OFDM_COMBINATIONS[MCS][OFDM_Option-1]:
             raise ValueError(
                 f"Invalid MCS ({MCS})- OFDM Option combination ({OFDM_Option})")
         if not isinstance(phyOFDMInterleaving, int):
@@ -241,24 +270,32 @@ class mr_ofdm_modulator():
         if not (0 <= scrambler <= 3):
             raise ValueError("Invalid scrambler value (0 <= scrambler <= 3)")
 
-        
-        
         self._phyOFDMInterleaving = phyOFDMInterleaving
-        self._scrambler = scrambler
+        self._scrambler_seed_index = scrambler
         self._OFDM_Option = OFDM_Option
         self._verbose = verbose
         self._MCS = MCS
+        # Lowest possible MCS value for the current OFDM option (for sending PHR)
+        self._lowest_MCS = LOWEST_MCS_VALUE[OFDM_Option]
 
-        self._print_verbose(f"Instanciating a modulator with OFDM Option = {OFDM_Option} and MCS = {MCS}")
+        self._N_cbps = DATA_TONES[OFDM_Option]
+        #self._N_dbps = DATA_TONES[OFDM_Option] * N_BPSC[self._MCS] # this is wrong
+        self._rate = 1/2 if RATE[self._MCS] == "1/2" else 3/4
+        self._N_dbps = int(self._N_cbps * self._rate)
+
+        self._print_verbose(
+            f"Instanciating a modulator with OFDM Option = {OFDM_Option} and MCS = {MCS}")
 
         # Sets the pilots (PN9 sequence)
-        pn9_inst = pn9(seed=0x1FF)
-        pn9_sequence = np.array(pn9_inst.nextN(
-            np.prod(PILOTS_SHAPE[OFDM_Option])))
-        pilots = pn9_sequence.reshape(PILOTS_SHAPE[OFDM_Option], order='F')
+        #pn9_inst = pn9(seed=0x1FF)
+        #pn9_sequence = np.array(pn9_inst.nextN(
+        #    np.prod(PILOTS_SHAPE[OFDM_Option])))
+        #BPSK_modulator = get_modulator('BPSK')
+        #self._pilots = BPSK_modulator.convert(pn9_sequence).reshape(
+        #    PILOTS_SHAPE[OFDM_Option], order='F')
 
         # Sets the padding (one less on the right than on the left because of the DC tone)
-        padding = (FFT_SIZE[OFDM_Option] - ACTIVE_TONES[OFDM_Option]) // 2
+        #padding = (FFT_SIZE[OFDM_Option] - ACTIVE_TONES[OFDM_Option]) // 2
 
         # Instanciate OFDM modulator from SDPA_OFDM package
         # self.ofdm_modulator = ofdm_modulator(
@@ -295,7 +332,7 @@ class mr_ofdm_modulator():
         """
         self._print_verbose("Creating STF....")
         self._print_verbose(
-        """
+            """
           symbol 1   symbol 2   symbol 3   symbol 4
         |CP++++++++|CP++++++++|CP++++++++|CP++++----|
 
@@ -305,6 +342,7 @@ class mr_ofdm_modulator():
         """)
 
         STF_CP = 1/4
+        POWER_BOOSTING_FACTOR = 1.25  # See 18.2.1.1.4
         # OFDM modulator for the STF symbols specifically
         mod = ofdm_modulator(N_FFT=FFT_SIZE[self._OFDM_Option], CP=STF_CP)
 
@@ -318,7 +356,7 @@ class mr_ofdm_modulator():
         # Create the signal with the four symbols
         signal = np.block([STF_time_domain, STF_time_domain,
                           STF_time_domain, STF_time_domain_fourth])
-        I, Q = signal.real, signal.imag
+        I, Q = signal.real * POWER_BOOSTING_FACTOR, signal.imag * POWER_BOOSTING_FACTOR
 
         self._print_verbose(f"    STF signal is {signal.size} elements")
 
@@ -370,7 +408,7 @@ class mr_ofdm_modulator():
         ----------
         x : ndarray
             Input signal
-        
+
         Returns
         -------
         x_encoded : ndarray
@@ -383,26 +421,30 @@ class mr_ofdm_modulator():
             # Rate 3/4
             encoder = rate_three_quarter()
 
-        _, _, x_encoded = encoder.sequence()
+        _, _, x_encoded = encoder.sequence(x)
 
-    def _interleaver(self, x):
+        return x_encoded
+
+    def _interleaver(self, x, MCS):
         """
         Applies interleaver to the given signal
         See 18.2.3.5
-        
+
         Parameters
         ----------
         x : ndarray
             Input signal
-        
+        MCS : int
+            The current MCS value
+
         Returns
         -------
         x_interleaved : ndarray
             Interleaved signal
         """
-        SF = FREQUENCY_SPREADING[self._MCS]
+        SF = FREQUENCY_SPREADING[MCS]
         N_FFT = FFT_SIZE[self._OFDM_Option]
-        N_bpsc = N_BPSC[self._MCS]
+        N_bpsc = N_BPSC[MCS]
 
         if self._phyOFDMInterleaving == 0:
             # interleaving depth of 1
@@ -412,22 +454,106 @@ class mr_ofdm_modulator():
             # See table
             N_cbps = N_FFT * N_bpsc * (3/4)
             # NOTE: //1 gives the right result but it should be //SF
-            N_row = 12 // 1
+            N_row = 12 // SF
+
+        print(f"N_bpsc = {N_bpsc}")
+        print(f"N_cbps = {N_cbps}")
+        print(f"N_row = {N_row}")
 
         k = np.arange(N_cbps, dtype=int)
-        i = ((N_cbps / N_row) * (np.mod(k, N_row)) + np.floor(k / N_row)).astype(int)
+        i = ((N_cbps / N_row) * (np.mod(k, N_row)) +
+             np.floor(k / N_row)).astype(int)
 
         s = np.max([1, N_bpsc/2])
-        j = (s * np.floor(i / s) + np.mod(i + N_cbps - np.floor(N_row * i / N_cbps), s)).astype(int)
+        # We use i as an index here, so we store a copy of the previous one
+        i_store = i.copy()
+        i = np.arange(N_cbps, dtype=int)
+        j = (s * np.floor(i / s) + np.mod(i + N_cbps -
+             np.floor(N_row * i / N_cbps), s)).astype(int)
 
-        ij = i[j]
+        ij = i_store[j]
 
         x_interleaved = np.zeros_like(x)
         for s in range(x.size // k.size):
-            x_interleaved[s*k.size + ij] = x_interleaved[s*k.size + k]
+            x_interleaved[s*k.size + ij] = x[s*k.size + k]
 
         return x_interleaved
 
+    def _padding(self, message):
+        """
+        Adds padding to the given message. The number of padding bits is calculated according to 18.2.3.10
+
+        Parameters
+        ----------
+        message : ndarray
+            The message to pad
+        length : int
+            The size of the transmitted message
+
+        Returns
+        -------
+        output : ndarray
+            The padded message
+        """
+        N_TAIL_BITS = 6
+        # TODO : remove docstring if this works
+        length = message.size // 8 # number of octets !
+        # See P.90
+        print(f"N_cbps = {self._N_cbps}")
+        print(f"N_dbps = {self._N_dbps}")
+        N_SYM = np.ceil((8 * length + 6) / self._N_dbps)
+        N_DATA = N_SYM * self._N_dbps
+        N_PAD = int(N_DATA - (8 * length + 6))
+        self._N_PAD = N_PAD
+        print(f"pad bits : {N_PAD}")
+        output = np.block([message, np.zeros(N_PAD), np.zeros(N_TAIL_BITS)])
+        print(f"message {message.shape} -> output {output.shape}")
+        return output
+
+    def _modulation(self, message, modulation):
+        """
+        Modulates message according to the given modulation
+
+        Parameters
+        ----------
+        message : ndarray
+            Input message
+        modulation : str
+            Modulation to use
+
+        Returns
+        -------
+        output : ndarray
+            Modulated message
+        """
+        mod = get_modulator(modulation)
+
+        output = mod.convert(message)
+
+        return output
+
+    def _scrambler(self, message):
+        """
+        Applies scrambling to the message. The message is the PHR with pad and tail bits
+
+        Parameters
+        ----------
+        message : ndarray
+            The message to scrambler
+
+        Returns
+        -------
+        output : ndarray
+            Scrambled message
+        """
+        N_TAIL_BITS = 6
+        enc = pn9(seed=SCRAMBLING_SEED[self._scrambler_seed_index])
+        sequence = np.array(enc.nextN(message.size), dtype=np.uint8)
+        output = np.bitwise_xor(sequence, message.astype(np.uint8))
+
+        # Reset the tail bits to 0
+        output[-N_TAIL_BITS-self._N_PAD:-self._N_PAD] = 0
+        return output
 
     def messageToIQ(self, message):
         """
@@ -449,18 +575,72 @@ class mr_ofdm_modulator():
         STF_I, STF_Q = self._STF()
         # Generate LTF
         LTF_I, LTF_Q = self._LTF()
-
+        frame_length = message.size // 8
         # Generate header
-        # TODO : set length correctly
-        PHY_HEADER = PHR(rate=self._MCS, length=1, scrambler=self._scrambler)
+        PHY_header = PHR(rate=self._MCS, length=frame_length,
+                         scrambler=self._scrambler_seed_index).value()
+        # Encoding header
+        PHY_header_encoded = self._encoder(PHY_header)
+        # Interleaving header
+        PHY_header_interleaved = self._interleaver(
+            PHY_header_encoded, self._lowest_MCS)
+        # Mapping
+        PHY_header_mapped = self._modulation(
+            PHY_header_interleaved, MODULATION[self._lowest_MCS])
+        # Apply OFDM modulation
+        # Sets the padding (one less on the right than on the left because of the DC tone)
+        padding = (FFT_SIZE[self._OFDM_Option] -
+                   ACTIVE_TONES[self._OFDM_Option]) // 2
+        mod_phy = ofdm_modulator(
+            N_FFT=FFT_SIZE[self._OFDM_Option],
+            modulation=MODULATION[self._lowest_MCS],
+            modulation_factor=K_MOD[MODULATION[self._lowest_MCS]],
+            frequency_spreading=FREQUENCY_SPREADING[self._lowest_MCS],
+            padding_left=padding,
+            padding_right=padding-1,
+            pilots_indices=PILOTS_INDICES[self._OFDM_Option],
+            pilots_values="pn9",
+            CP=1/4)
 
+        PHY_I, PHY_Q, _, _ = mod_phy.messageToIQ(PHY_header_mapped, pad=False)
+
+        # Scrambler
+        payload_pad = self._padding(message)
+        payload_scrambled = self._scrambler(payload_pad)
+        # Encoding header
+        payload_encoded = self._encoder(payload_scrambled)
+        # Interleaving header
+        payload_interleaved = self._interleaver(
+            payload_encoded, self._MCS)
+        # Mapping
+        #payload_mapped = self._modulation(
+        #    payload_interleaved, MODULATION[self._MCS])
         
+        # Payload
+        mod_payload = ofdm_modulator(
+            N_FFT=FFT_SIZE[self._OFDM_Option],
+            modulation=MODULATION[self._MCS],
+            frequency_spreading=FREQUENCY_SPREADING[self._MCS],
+            modulation_factor=K_MOD[MODULATION[self._MCS]],
+            padding_left=padding,
+            padding_right=padding-1,
+            pilots_indices=PILOTS_INDICES[self._OFDM_Option],
+            pilots_values="pn9",
+            CP=1/4,
+            initial_pilot_set=mod_phy.get_pilot_set_index(),
+            initial_pn9_seed = mod_phy.get_pn9_value())
+        
+        print(f"Modulation factor : {K_MOD[MODULATION[self._MCS]]}")
 
+        np.save("header_encoded", PHY_header_encoded)
+        np.save("payload_encoded", payload_encoded)
 
+        PAYLOAD_I, PAYLOAD_Q, _, payload_mapped = mod_payload.messageToIQ(payload_interleaved, pad=True)
 
-        return I, Q
+        I = np.block([STF_I, LTF_I, PHY_I, PAYLOAD_I])
+        Q = np.block([STF_Q, LTF_Q, PHY_Q, PAYLOAD_Q])
 
-    
+        return I, Q, payload_mapped
 
     def _print_verbose(self, message: str):
         """

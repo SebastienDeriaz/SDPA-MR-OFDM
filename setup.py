@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 import codecs
 import os
 
-VERSION = '0.0.2'
+VERSION = '1.0.0'
 DESCRIPTION = 'Software OFDM Modulator'
 
 with open("README.md", "r", encoding="utf-8") as fh:
@@ -21,7 +21,7 @@ setup(
     install_requires=['numpy'],
     keywords=['python', 'ofdm', 'modulation', 'modulator', 'sdr', 'mr-ofdm'],
     classifiers=[
-        "Development Status :: 2 - Pre-Alpha",
+        "Development Status :: 3 - Alpha",
         "Intended Audience :: Education",
         "Programming Language :: Python :: 3",
         "Operating System :: Unix",

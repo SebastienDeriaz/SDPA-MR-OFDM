@@ -1,6 +1,15 @@
 import numpy as np
 from numpy import poly1d, polymul, polydiv, polyadd
 
+
+
+RATE_BITS = slice(0, 4+1)
+FRAME_LENGTH_BITS = slice(6, 16+1)
+SCRAMBLER_BITS = slice(19, 20+1)
+HCS_BITS = slice(22, 29+1)
+TAIL_BITS = slice(30, 35+1)
+
+
 def _uintarr(value, bits=8, order='big'):
     """
     Returns an array corresponding to the binary representation of a given unsigned integer
@@ -99,7 +108,7 @@ class PHR():
 
     def value(self):
         """
-        Returns the byte-array value of the PHY Header
+        Returns the byte-array value of the PHY Header with tail and pad bits
 
         Returns
         -------
@@ -111,9 +120,9 @@ class PHR():
         # Build the array in correct order (LSB first)
         # This is great because it is the order in which it will be sent
         # as well as the order in which it's "logical" to build it (indices)
-        output[0:4+1] = _uintarr(self._RA, bits=5)
-        output[6:16+1] = _uintarr(self._L, bits=11)
-        output[19:20+1] = _uintarr(self._S, bits=2)
+        output[RATE_BITS] = _uintarr(self._RA, bits=5)
+        output[FRAME_LENGTH_BITS] = _uintarr(self._L, bits=11)
+        output[SCRAMBLER_BITS] = _uintarr(self._S, bits=2)
 
         # Convert the current output to byte array
         int_array = np.packbits(output[0:22+1])
@@ -121,7 +130,6 @@ class PHR():
         
         HCS = HCS_calculation(output[0:22])
 
-        output[22:29+1] = HCS
+        output[HCS_BITS] = HCS
         # Tail bits (30-35) are all zeros
-        # PAD bits (36-47) are all zeros as well
         return output

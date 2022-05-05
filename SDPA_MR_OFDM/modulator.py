@@ -562,7 +562,10 @@ class mr_ofdm_modulator():
             Real part of the signal
         Q : ndarray
             Imaginary part of the signal
+        f : float
+            I and Q signals frequency
         """
+        CP = 1/4
         # Generate STF
         STF_I, STF_Q = self._STF()
         # Generate LTF
@@ -592,7 +595,7 @@ class mr_ofdm_modulator():
             padding_right=padding-1,
             pilots_indices=PILOTS_INDICES[self._OFDM_Option],
             pilots_values="pn9",
-            CP=1/4)
+            CP=CP)
 
         PHY_I, PHY_Q, _ = mod_phy.messageToIQ(PHY_header_mapped, pad=False)
 
@@ -618,7 +621,7 @@ class mr_ofdm_modulator():
             padding_right=padding-1,
             pilots_indices=PILOTS_INDICES[self._OFDM_Option],
             pilots_values="pn9",
-            CP=1/4,
+            CP=CP,
             initial_pilot_set=mod_phy.get_pilot_set_index(),
             initial_pn9_seed = mod_phy.get_pn9_value())
 
@@ -627,7 +630,14 @@ class mr_ofdm_modulator():
         I = np.block([STF_I, LTF_I, PHY_I, PAYLOAD_I])
         Q = np.block([STF_Q, LTF_Q, PHY_Q, PAYLOAD_Q])
 
-        return I, Q
+        # I and Q signals frequency
+        # We know a symbol (with cyclic prefix) is 120us
+        # Therefore we can determine the period with 120us / (FFT size * (1+CP))
+        # And f = (FFT size * (1+CP)) / 120us
+        SYMBOL_DURATION = 120e-6 # 120us
+        f = FFT_SIZE[self._OFDM_Option] * (1+CP) / SYMBOL_DURATION
+
+        return I, Q, f
 
     def _print_verbose(self, message: str):
         """

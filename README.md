@@ -8,21 +8,24 @@ This package adds another layer on top of the SDPA-OFDM package to support MR-OF
 ## Installation
 
 The package can be installed from pip
-
-	pip install SDPA-MR-OFDM
+```python
+pip install SDPA-MR-OFDM
+```
 
 ## Usage
 
 
 Instanciate a MR-OFDM modulator
-
-	from SDPA_MR_OFDM import mr_ofdm_modulator
+```python
+from SDPA_MR_OFDM import mr_ofdm_modulator
 	
-	mod = mr_ofdm_modulator(MCS=3, OFDM_Option=2, phyOFDMInterleaving=1)
-	
+mod = mr_ofdm_modulator(MCS=3, OFDM_Option=2, phyOFDMInterleaving=1)
+```
 Generate I and Q signals from a message (message must be a list of bits)
-
-	I, Q, f = mod.messageToIQ(message)
+```pyhton
+I, Q, f = mod.messageToIQ(message)
+```
+	
 
 f is the frequency of I and Q, this is useful for implementing in a vector signal generator
 

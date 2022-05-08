@@ -63,7 +63,7 @@ PILOTS_INDICES_OPTION_3 = np.array([
     [-5, 9],  # Set 5
     [-13, 1],  # Set 6
     [-1, 13]  # Set 7
-])
+]).T
 
 # See table 156
 PILOTS_INDICES_OPTION_4 = np.array([
@@ -71,7 +71,7 @@ PILOTS_INDICES_OPTION_4 = np.array([
     [-7, 1],  # Set 2
     [-5, 3],  # Set 3
     [-1, 7]  # Set 4
-])
+]).T
 
 # Pilots indices as a function of OFDM option
 PILOTS_INDICES = {
@@ -453,8 +453,8 @@ class mr_ofdm_modulator():
             # interleaving depth of SF
             # See table
             N_cbps = N_FFT * N_bpsc * (3/4)
-            # NOTE: //1 gives the right result but it should be //SF
-            N_row = 12 // SF
+        # 06.05.2022, testing here (instead of inside the else:)
+        N_row = 12 // SF
 
         k = np.arange(N_cbps, dtype=int)
         i = ((N_cbps / N_row) * (np.mod(k, N_row)) +

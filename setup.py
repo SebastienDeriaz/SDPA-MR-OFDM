@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 import codecs
 import os
 
-VERSION = '1.0.0'
+VERSION = '1.0.1'
 DESCRIPTION = 'Software OFDM Modulator'
 
 with open("README.md", "r", encoding="utf-8") as fh:

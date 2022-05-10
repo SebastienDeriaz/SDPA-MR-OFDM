@@ -7,6 +7,8 @@ from SDPA_OFDM.pn9 import pn9
 from SDPA_MR_OFDM.rate_encoder import rate_one_half, rate_three_quarter
 from SDPA_MR_OFDM.fields import PHR, TAIL_BITS
 
+from colorama import Fore
+
 
 # FFT size as function of OFDM option
 FFT_SIZE = {
@@ -229,6 +231,9 @@ SCRAMBLING_SEED = {
     3: int('0b101111100', 2)
 }
 
+_Color0 = Fore.CYAN
+_ColorReset = Fore.RESET
+
 
 class mr_ofdm_modulator():
     def __init__(self, MCS=0, OFDM_Option=1, phyOFDMInterleaving=0, scrambler=0, verbose=False):
@@ -283,33 +288,8 @@ class mr_ofdm_modulator():
         self._rate = 1/2 if RATE[self._MCS] == "1/2" else 3/4
         self._N_dbps = int(self._N_cbps * self._rate)
 
-        self._print_verbose(
-            f"Instanciating a modulator with OFDM Option = {OFDM_Option} and MCS = {MCS}")
-
-        # Sets the pilots (PN9 sequence)
-        #pn9_inst = pn9(seed=0x1FF)
-        #pn9_sequence = np.array(pn9_inst.nextN(
-        #    np.prod(PILOTS_SHAPE[OFDM_Option])))
-        #BPSK_modulator = get_modulator('BPSK')
-        #self._pilots = BPSK_modulator.convert(pn9_sequence).reshape(
-        #    PILOTS_SHAPE[OFDM_Option], order='F')
-
-        # Sets the padding (one less on the right than on the left because of the DC tone)
-        #padding = (FFT_SIZE[OFDM_Option] - ACTIVE_TONES[OFDM_Option]) // 2
-
-        # Instanciate OFDM modulator from SDPA_OFDM package
-        # self.ofdm_modulator = ofdm_modulator(
-        #     N_FFT=FFT_SIZE[OFDM_Option],
-        #     BW=SUB_CARRIER_SPACING * (FFT_SIZE[OFDM_Option]-1) / 2,
-        #     modulation=MODULATION[MCS],
-        #     modulation_factor=K_MOD[MODULATION[MCS]],
-        #     padding_left=padding,
-        #     padding_right=padding - 1,
-        #     pilots_indices=PILOTS_INDICES[OFDM_Option],
-        #     pilots=pilots,
-        #     frequency_spreading=FREQUENCY_SPREADING[MCS],
-        #     MSB_first=False,  # 18.2.1
-        #     verbose=verbose)
+        self._print_verbose(_Color0 + 
+            f"Instanciating a modulator with OFDM Option = {OFDM_Option} and MCS = {MCS}" + _ColorReset)
 
     def _STF(self):
         """

@@ -480,7 +480,7 @@ class mr_ofdm_modulator():
         N_PAD = int(N_DATA - (8 * length + 6))
         self._N_PAD = N_PAD
         self._print_verbose(f"Adding {N_PAD} padding bits and {N_TAIL_BITS} tail bits to the message")
-        output = np.block([message, np.zeros(N_PAD), np.zeros(N_TAIL_BITS)], dtype=int)
+        output = np.block([message, np.zeros(N_PAD), np.zeros(N_TAIL_BITS)])
         return output
 
     def _modulation(self, message, modulation):

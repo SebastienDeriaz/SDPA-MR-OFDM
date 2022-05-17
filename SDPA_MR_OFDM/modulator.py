@@ -552,13 +552,18 @@ class mr_ofdm_modulator():
         LTF_I, LTF_Q = self._LTF()
         frame_length = message.size // 8
         # Generate header
+        self._print_verbose(Fore.LIGHTBLUE_EX + "Generating PHY header...")
         PHY_header = PHR(rate=self._MCS, length=frame_length,
-                         scrambler=self._scrambler_seed_index).value()
+                         scrambler=self._scrambler_seed_index, phyOFDMInterleaving=self._phyOFDMInterleaving).value()
+        self._print_verbose(Fore.LIGHTBLUE_EX + f"header : {PHY_header.size} bits")
         # Encoding header
         PHY_header_encoded = self._encoder(PHY_header)
+        self._print_verbose(Fore.LIGHTBLUE_EX + f"header after encoding : {PHY_header_encoded.size} bits")
         # Interleaving header
         PHY_header_interleaved = self._interleaver(
             PHY_header_encoded, self._lowest_MCS)
+        self._print_verbose(Fore.LIGHTBLUE_EX + f"header after interleaving : {PHY_header_interleaved.size} bits")
+        print(PHY_header_interleaved)
         # Mapping
         PHY_header_mapped = self._modulation(
             PHY_header_interleaved, MODULATION[self._lowest_MCS])
@@ -578,6 +583,9 @@ class mr_ofdm_modulator():
             CP=CP)
 
         PHY_I, PHY_Q, _ = mod_phy.messageToIQ(PHY_header_mapped, pad=False)
+        self._print_verbose(Fore.LIGHTBLUE_EX + f"header complex (I+jQ) signal is {PHY_I.size} samples" + Fore.RESET)
+
+
 
         # Scrambler
         payload_pad = self._padding(message)

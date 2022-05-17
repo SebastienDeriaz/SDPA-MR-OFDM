@@ -73,7 +73,7 @@ def HCS_calculation(input_array):
 
 
 class PHR():
-    def __init__(self, rate=0, length=1, scrambler=0):
+    def __init__(self, rate, length, scrambler, phyOFDMInterleaving):
         """
         PHY Header for MR-OFDM
         See 18.2.1.3 in 802.15.4g specification
@@ -86,6 +86,10 @@ class PHR():
             6-16 (L10-L0) Frame length. Total number of octets contained in the PSDU (prior to FEC encoding)
         scrambler : int
             19-20 (S1-S0) Scrambler  Scrambling seed (0 - 3)
+        phyOFDMInterleaving : int or bool
+            Type of modulation, this affects the length of the PHR
+            phyOFDMInterleaving = True  : 48 bits
+            phyOFDMInterleaving = False : 36 bits
         """
         # Check values and types
         if not isinstance(rate, int):
@@ -105,6 +109,7 @@ class PHR():
         self._RA = rate
         self._L = length
         self._S = scrambler
+        self._phyOFDMInterleaving = phyOFDMInterleaving
 
     def value(self):
         """
@@ -114,9 +119,10 @@ class PHR():
         -------
         output : list of bytes
         """
+        length = 48 if self._phyOFDMInterleaving else 36
         # PHR : 36
         # PAD : 12
-        output = np.zeros([48], dtype=np.uint8)
+        output = np.zeros([length], dtype=np.uint8)
         # Build the array in correct order (LSB first)
         # This is great because it is the order in which it will be sent
         # as well as the order in which it's "logical" to build it (indices)

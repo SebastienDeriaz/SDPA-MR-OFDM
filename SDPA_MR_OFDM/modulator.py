@@ -428,11 +428,11 @@ class mr_ofdm_modulator():
 
         if self._phyOFDMInterleaving == 0:
             # interleaving depth of 1
-            N_cbps = N_FFT * N_bpsc / SF * (3/4)
+            N_cbps = int(np.round(N_FFT * N_bpsc / SF * (3/4)))
         else:
             # interleaving depth of SF
             # See table
-            N_cbps = N_FFT * N_bpsc * (3/4)
+            N_cbps = int(np.round(N_FFT * N_bpsc * (3/4)))
         # 06.05.2022, testing here (instead of inside the else:)
         N_row = 12 // SF
 
@@ -479,7 +479,8 @@ class mr_ofdm_modulator():
         N_DATA = N_SYM * self._N_dbps
         N_PAD = int(N_DATA - (8 * length + 6))
         self._N_PAD = N_PAD
-        output = np.block([message, np.zeros(N_PAD), np.zeros(N_TAIL_BITS)])
+        self._print_verbose(f"Adding {N_PAD} padding bits and {N_TAIL_BITS} tail bits to the message")
+        output = np.block([message, np.zeros(N_PAD), np.zeros(N_TAIL_BITS)], dtype=int)
         return output
 
     def _modulation(self, message, modulation):
@@ -563,7 +564,6 @@ class mr_ofdm_modulator():
         PHY_header_interleaved = self._interleaver(
             PHY_header_encoded, self._lowest_MCS)
         self._print_verbose(Fore.LIGHTBLUE_EX + f"header after interleaving : {PHY_header_interleaved.size} bits")
-        print(PHY_header_interleaved)
         # Mapping
         PHY_header_mapped = self._modulation(
             PHY_header_interleaved, MODULATION[self._lowest_MCS])

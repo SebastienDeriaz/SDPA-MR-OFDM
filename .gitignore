@@ -157,3 +157,4 @@ cython_debug/
 SDPA_MR_OFDM/tests/Table*.csv
 # The test file isn't provided either
 SDPA_MR_OFDM/tests/test_802_15_4g.py
+.vscode/*

@@ -129,10 +129,6 @@ class PHR():
         output[RATE_BITS] = _uintarr(self._RA, bits=5)
         output[FRAME_LENGTH_BITS] = _uintarr(self._L, bits=11)
         output[SCRAMBLER_BITS] = _uintarr(self._S, bits=2)
-
-        # Convert the current output to byte array
-        int_array = np.packbits(output[0:22+1])
-        byte_array = b''.join([int(x).to_bytes(1, byteorder='big') for x in int_array])
         
         HCS = HCS_calculation(output[0:22])
 

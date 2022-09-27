@@ -1,9 +1,6 @@
-from doctest import OutputChecker
 import numpy as np
 from SDPA_OFDM import ofdm_modulator
-from SDPA_OFDM.modulations import get_modulator
 from SDPA_OFDM.pn9 import pn9
-
 from SDPA_MR_OFDM.rate_encoder import rate_one_half, rate_three_quarter
 from SDPA_MR_OFDM.fields import PHR, TAIL_BITS
 
@@ -114,7 +111,7 @@ STF = {
     4: STF_OPTION_4
 }
 # Modulation as a function of MCS (See table )
-MODULATION = {
+MODULATION_AND_CODING_SCHEME = {
     0: 'BPSK',
     1: 'BPSK',
     2: 'QPSK',
@@ -472,8 +469,7 @@ class mr_ofdm_modulator():
             The padded message
         """
         N_TAIL_BITS = 6
-        # TODO : remove docstring if this works
-        length = message.size // 8 # number of octets !
+        length = message.size // 8 # number of octets
         # See P.90
         N_SYM = np.ceil((8 * length + 6) / self._N_dbps)
         N_DATA = N_SYM * self._N_dbps
@@ -481,28 +477,6 @@ class mr_ofdm_modulator():
         self._N_PAD = N_PAD
         self._print_verbose(f"Adding {N_PAD} padding bits and {N_TAIL_BITS} tail bits to the message")
         output = np.block([message, np.zeros(N_PAD), np.zeros(N_TAIL_BITS)])
-        return output
-
-    def _modulation(self, message, modulation):
-        """
-        Modulates message according to the given modulation
-
-        Parameters
-        ----------
-        message : ndarray
-            Input message
-        modulation : str
-            Modulation to use
-
-        Returns
-        -------
-        output : ndarray
-            Modulated message
-        """
-        mod = get_modulator(modulation)
-
-        output = mod.convert(message)
-
         return output
 
     def _scrambler(self, message):
@@ -546,6 +520,9 @@ class mr_ofdm_modulator():
         f : float
             I and Q signals frequency
         """
+        # Convert list to numpy array if necessary
+        if isinstance(message, list):
+            message = np.asarray(message)
         CP = 1/4
         # Generate STF
         STF_I, STF_Q = self._STF()
@@ -564,17 +541,14 @@ class mr_ofdm_modulator():
         PHY_header_interleaved = self._interleaver(
             PHY_header_encoded, self._lowest_MCS)
         self._print_verbose(Fore.LIGHTBLUE_EX + f"header after interleaving : {PHY_header_interleaved.size} bits")
-        # Mapping
-        PHY_header_mapped = self._modulation(
-            PHY_header_interleaved, MODULATION[self._lowest_MCS])
         # Apply OFDM modulation
         # Sets the padding (one less on the right than on the left because of the DC tone)
         padding = (FFT_SIZE[self._OFDM_Option] -
                    ACTIVE_TONES[self._OFDM_Option]) // 2
         mod_phy = ofdm_modulator(
             N_FFT=FFT_SIZE[self._OFDM_Option],
-            modulation=MODULATION[self._lowest_MCS],
-            modulation_factor=K_MOD[MODULATION[self._lowest_MCS]],
+            modulation=MODULATION_AND_CODING_SCHEME[self._lowest_MCS],
+            modulation_factor=K_MOD[MODULATION_AND_CODING_SCHEME[self._lowest_MCS]],
             frequency_spreading=FREQUENCY_SPREADING[self._lowest_MCS],
             padding_left=padding,
             padding_right=padding-1,
@@ -582,8 +556,8 @@ class mr_ofdm_modulator():
             pilots_values="pn9",
             CP=CP)
 
-        PHY_I, PHY_Q, _ = mod_phy.messageToIQ(PHY_header_mapped, pad=False)
-        self._print_verbose(Fore.LIGHTBLUE_EX + f"header complex (I+jQ) signal is {PHY_I.size} samples" + Fore.RESET)
+        PHR_I, PHR_Q, _ = mod_phy.messageToIQ(PHY_header_interleaved, pad=False)
+        self._print_verbose(Fore.LIGHTBLUE_EX + f"header complex (I+jQ) signal is {PHR_I.size} samples" + Fore.RESET)
 
 
 
@@ -595,28 +569,25 @@ class mr_ofdm_modulator():
         # Interleaving header
         payload_interleaved = self._interleaver(
             payload_encoded, self._MCS)
-        # Mapping
-        #payload_mapped = self._modulation(
-        #    payload_interleaved, MODULATION[self._MCS])
         
         # Payload
         mod_payload = ofdm_modulator(
             N_FFT=FFT_SIZE[self._OFDM_Option],
-            modulation=MODULATION[self._MCS],
+            modulation=MODULATION_AND_CODING_SCHEME[self._MCS],
             frequency_spreading=FREQUENCY_SPREADING[self._MCS],
-            modulation_factor=K_MOD[MODULATION[self._MCS]],
+            modulation_factor=K_MOD[MODULATION_AND_CODING_SCHEME[self._MCS]],
             padding_left=padding,
             padding_right=padding-1,
             pilots_indices=PILOTS_INDICES[self._OFDM_Option],
             pilots_values="pn9",
             CP=CP,
-            initial_pilot_set=mod_phy.get_pilot_set_index(),
+            initial_pilot_set = mod_phy.get_pilot_set_index(),
             initial_pn9_seed = mod_phy.get_pn9_value())
 
         PAYLOAD_I, PAYLOAD_Q, _ = mod_payload.messageToIQ(payload_interleaved, pad=True)
 
-        I = np.block([STF_I, LTF_I, PHY_I, PAYLOAD_I])
-        Q = np.block([STF_Q, LTF_Q, PHY_Q, PAYLOAD_Q])
+        I = np.block([STF_I, LTF_I, PHR_I, PAYLOAD_I])
+        Q = np.block([STF_Q, LTF_Q, PHR_Q, PAYLOAD_Q])
 
         # I and Q signals frequency
         # We know a symbol (with cyclic prefix) is 120us
